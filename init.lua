@@ -42,7 +42,6 @@ What is Kickstart?
     - (or HTML version): https://neovim.io/doc/user/lua-guide.html
 
 Kickstart Guide:
-
   TODO: The very first thing you should do is to run the command `:Tutor` in Neovim.
 
     If you don't know what this means, type the following:
@@ -102,7 +101,7 @@ vim.g.have_nerd_font = false
 vim.opt.number = true
 -- You can also add relative line numbers, to help with jumping.
 --  Experiment for yourself to see if you like it!
--- vim.opt.relativenumber = true
+vim.opt.relativenumber = true
 
 -- Enable mouse mode, can be useful for resizing splits for example!
 vim.opt.mouse = 'a'
@@ -225,7 +224,6 @@ vim.opt.rtp:prepend(lazypath)
 --
 --  To update plugins you can run
 --    :Lazy update
---
 -- NOTE: Here is where you install your plugins.
 require('lazy').setup({
   -- NOTE: Plugins can be added with a link (or for a github repo: 'owner/repo' link).
@@ -236,8 +234,6 @@ require('lazy').setup({
   -- keys can be used to configure plugin behavior/loading/etc.
   --
   -- Use `opts = {}` to force a plugin to be loaded.
-  --
-
   -- Here is a more advanced example where we pass configuration
   -- options to `gitsigns.nvim`. This is equivalent to the following Lua:
   --    require('gitsigns').setup({ ... })
@@ -331,7 +327,76 @@ require('lazy').setup({
   -- you do for a plugin at the top level, you can do for a dependency.
   --
   -- Use the `dependencies` key to specify the dependencies of a particular plugin
+  {
+    'nvim-tree/nvim-tree.lua',
+    dependencies = {
+      'nvim-tree/nvim-web-devicons', -- optional, for file icons
+    },
+    config = function()
+      local api = require 'nvim-tree.api'
 
+      local function on_attach(bufnr)
+        local function opts(desc)
+          return { desc = 'nvim-tree: ' .. desc, buffer = bufnr, noremap = true, silent = true, nowait = true }
+        end
+
+        -- Default mappings
+        api.config.mappings.default_on_attach(bufnr)
+
+        -- Custom mappings
+        vim.keymap.set('n', '<C-t>', api.tree.change_root_to_parent, opts 'Up')
+        vim.keymap.set('n', '?', api.tree.toggle_help, opts 'Help')
+      end
+
+      -- Setup nvim-tree
+      require('nvim-tree').setup {
+        sort = {
+          sorter = 'case_sensitive',
+        },
+        view = {
+          width = 30,
+        },
+        renderer = {
+          group_empty = true,
+        },
+        filters = {
+          dotfiles = true,
+        },
+        on_attach = on_attach,
+      }
+
+      -- Function to toggle focus between nvim-tree and editor
+      local function toggle_tree_focus()
+        local current_buf = vim.api.nvim_get_current_buf()
+        local nvim_tree_buffers = {}
+
+        -- Find all nvim-tree buffers
+        for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+          if vim.bo[buf].filetype == 'NvimTree' then
+            table.insert(nvim_tree_buffers, buf)
+          end
+        end
+
+        if #nvim_tree_buffers > 0 then
+          -- NvimTree is open
+          if vim.bo[current_buf].filetype == 'NvimTree' then
+            -- We're in NvimTree, so focus on the previous window
+            vim.cmd 'wincmd p'
+          else
+            -- We're not in NvimTree, so focus on it
+            api.tree.focus()
+          end
+        else
+          -- NvimTree is not open, so toggle it
+          api.tree.toggle()
+        end
+      end
+
+      -- Keymaps for nvim-tree
+      vim.keymap.set('n', '<leader>e', api.tree.toggle, { desc = 'Toggle file explorer' })
+      vim.keymap.set('n', '<leader>tf', toggle_tree_focus, { desc = 'Toggle focus between file explorer and editor' })
+    end,
+  },
   { -- Fuzzy Finder (files, lsp, etc)
     'nvim-telescope/telescope.nvim',
     event = 'VimEnter',
@@ -418,6 +483,10 @@ require('lazy').setup({
         builtin.current_buffer_fuzzy_find(require('telescope.themes').get_dropdown {
           winblend = 10,
           previewer = false,
+          layout_config = {
+            height = 0.7,
+            width = 0.7,
+          },
         })
       end, { desc = '[/] Fuzzily search in current buffer' })
 
@@ -699,6 +768,7 @@ require('lazy').setup({
       end,
       formatters_by_ft = {
         lua = { 'stylua' },
+        svelte = { 'prettier' },
         -- Conform can also run multiple formatters sequentially
         -- python = { "isort", "black" },
         --
@@ -882,6 +952,38 @@ require('lazy').setup({
       --  Check out: https://github.com/echasnovski/mini.nvim
     end,
   },
+  {
+    'windwp/nvim-autopairs',
+    event = 'InsertEnter',
+    config = function()
+      require('nvim-autopairs').setup {
+        check_ts = true, -- Enable treesitter integration
+        ts_config = {
+          lua = { 'string' }, -- Don't add pairs in lua string treesitter nodes
+          javascript = { 'template_string' }, -- Don't add pairs in javascript template_string treesitter nodes
+          java = false, -- Don't check treesitter on java
+        },
+      }
+      -- If you want insert `(` after select function or method item
+      local cmp_autopairs = require 'nvim-autopairs.completion.cmp'
+      local cmp = require 'cmp'
+      cmp.event:on('confirm_done', cmp_autopairs.on_confirm_done())
+    end,
+  },
+  {
+    'windwp/nvim-ts-autotag',
+    dependencies = 'nvim-treesitter/nvim-treesitter',
+    config = function()
+      require('nvim-ts-autotag').setup {
+        -- You can customize options here, but the defaults are usually fine
+        opts = {
+          enable_close = true,
+          enable_rename = true,
+          enable_close_on_slash = false,
+        },
+      }
+    end,
+  },
   { -- Highlight, edit, and navigate code
     'nvim-treesitter/nvim-treesitter',
     build = ':TSUpdate',
@@ -923,7 +1025,6 @@ require('lazy').setup({
   -- require 'kickstart.plugins.autopairs',
   -- require 'kickstart.plugins.neo-tree',
   -- require 'kickstart.plugins.gitsigns', -- adds gitsigns recommend keymaps
-
   -- NOTE: The import below can automatically add your own plugins, configuration, etc from `lua/custom/plugins/*.lua`
   --    This is the easiest way to modularize your config.
   --
